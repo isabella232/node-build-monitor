@@ -32,9 +32,23 @@ module.exports = function () {
                   callback(error);
                   return;
                 }
-
                 async.map(body, requestBuild, function (error, results) {
-                    callback(error, results);
+                    // NOTE: Change here to add more filters for which branches to include/exclude
+                    function filterByBranch(result) {
+                      // show master branches that are pushed
+                      if (result.project === "master" && result.reason === "push") return true;
+                      // show master branches that are cron (nightly buids)
+                      if (result.project === "master" && result.reason === "cron") return true;
+                      // show snapshot branches
+                      if (result.project.startsWith("snapshot")) return true;
+                      // show release branches
+                      if(result.project.match(/^v\d\.\d\.\d-/)) return true;
+                      // don't show anything else
+                      return false;
+                    }
+
+                    const filteredResults = results.filter(filterByBranch);
+                    callback(error, filteredResults);
                 });
             });
         },
@@ -53,7 +67,7 @@ module.exports = function () {
         simplifyBuild = function (res) {
             return {
                 id: self.configuration.slug + '|' + res.number,
-                project: self.configuration.slug,
+                project: res.branch,
                 number: res.number,
                 isRunning: res.state === 'started',
                 startedAt: parseDate(res.started_at),
